@@ -2,6 +2,50 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const FBA = std.heap.FixedBufferAllocator;
 
+const MAX_LINE_SIZE = 256 + std.fs.max_path_bytes;
+
+const FixedBuffer = struct {};
+
+const WatcherConfig = struct {
+    folder: []const u8 = undefined,
+
+    fn init(f: std.fs.File) !WatcherConfig {
+        var config = WatcherConfig{};
+        const reader = f.reader();
+        var buf: [MAX_LINE_SIZE]u8 = undefined;
+        var i: u32 = 0;
+        while (true) {
+            const byte = reader.readByte() catch |err| {
+                switch (err) {
+                    error.EndOfStream => {
+                        break;
+                    },
+                    else => {
+                        return err;
+                    },
+                }
+            };
+            if (byte == '\n') {
+                if (i > MAX_LINE_SIZE) return error.ConfigLineTooLong;
+                var c: u32 = 0;
+                while (buf[c] != '=' and c <= i) {
+                    c += 1;
+                }
+                const key = buf[0..c];
+                // Ignore '='
+                const value = buf[c + 2 .. i + 1];
+                if (std.mem.eql(u8, key, "FOLDER")) {
+                    config.folder = value;
+                }
+                i = 0;
+            }
+            buf[i] = byte;
+            i += 1;
+        }
+        return config;
+    }
+};
+
 pub fn main() !void {
     var args = std.process.args();
     while (args.next()) |arg| {
@@ -66,6 +110,9 @@ pub fn main() !void {
             _ = try watcher_file.write("\n");
         }
     }
+    const file = try std.fs.openFileAbsolute("/home/cristian/.watcher/watcher.env", .{});
+    const config = try WatcherConfig.init(file);
+    std.debug.print("{s}\n", .{config.folder});
 }
 
 fn concat(allocator: Allocator, a: []const u8, b: []const u8) ![]u8 {
