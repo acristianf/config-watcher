@@ -1,52 +1,13 @@
 const std = @import("std");
+const env_parser = @import("env-parser.zig");
 const Allocator = std.mem.Allocator;
 const FBA = std.heap.FixedBufferAllocator;
 
 const MAX_LINE_SIZE = 256 + std.fs.max_path_bytes;
 
-const FixedBuffer = struct {};
-
-const WatcherConfig = struct {
-    folder: []const u8 = undefined,
-
-    fn init(f: std.fs.File) !WatcherConfig {
-        var config = WatcherConfig{};
-        const reader = f.reader();
-        var buf: [MAX_LINE_SIZE]u8 = undefined;
-        var i: u32 = 0;
-        while (true) {
-            const byte = reader.readByte() catch |err| {
-                switch (err) {
-                    error.EndOfStream => {
-                        break;
-                    },
-                    else => {
-                        return err;
-                    },
-                }
-            };
-            if (byte == '\n') {
-                if (i > MAX_LINE_SIZE) return error.ConfigLineTooLong;
-                var c: u32 = 0;
-                while (buf[c] != '=' and c <= i) {
-                    c += 1;
-                }
-                const key = buf[0..c];
-                // Ignore '='
-                const value = buf[c + 2 .. i + 1];
-                if (std.mem.eql(u8, key, "FOLDER")) {
-                    config.folder = value;
-                }
-                i = 0;
-            }
-            buf[i] = byte;
-            i += 1;
-        }
-        return config;
-    }
-};
-
 pub fn main() !void {
+    const HOME_DIR = std.posix.getenv("HOME") orelse return error.HomeEnvNotSet;
+
     var args = std.process.args();
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--set-folder")) {
@@ -59,14 +20,10 @@ pub fn main() !void {
                 std.log.err("[ERROR] Couldn't read path '{s}'. Error: {!} \n", .{ path, err });
                 return;
             };
-            const homedir = std.posix.getenv("HOME") orelse {
-                std.log.err("[ERROR] Couldn't read '$HOME' \n", .{});
-                return;
-            };
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             var fba = FBA.init(&buf);
             const fbaallocator = fba.allocator();
-            const watcher = concat(fbaallocator, homedir, "/.watcher") catch |err| {
+            const watcher = concat(fbaallocator, HOME_DIR, "/.watcher") catch |err| {
                 std.log.err("[ERROR] {!} \n", .{err});
                 return;
             };
@@ -105,14 +62,26 @@ pub fn main() !void {
             defer watcher_file.close();
             try watcher_file.seekFromEnd(0);
             fba.reset();
-            const folderconfig = try concat(fbaallocator, "FOLDER=", realpath);
+            const folderconfig = try concat(fbaallocator, "folder=", realpath);
             _ = try watcher_file.write(folderconfig);
             _ = try watcher_file.write("\n");
         }
     }
-    const file = try std.fs.openFileAbsolute("/home/cristian/.watcher/watcher.env", .{});
-    const config = try WatcherConfig.init(file);
-    std.debug.print("{s}\n", .{config.folder});
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const gpaa = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(gpaa);
+    const aa = arena.allocator();
+    defer arena.deinit();
+
+    const config_file_path = try concat(aa, HOME_DIR, "/.watcher/watcher.env");
+
+    var config_map = std.StringHashMap([]const u8).init(aa);
+    defer config_map.deinit();
+
+    const file = try std.fs.openFileAbsolute(config_file_path, .{});
+    try env_parser.parseFile(aa, &config_map, &file);
+    std.debug.print("{?s}\n", .{config_map.get("folder")});
 }
 
 fn concat(allocator: Allocator, a: []const u8, b: []const u8) ![]u8 {
