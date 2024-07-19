@@ -3,7 +3,7 @@ const std = @import("std");
 const MAX_KEY_LEN = 512;
 const MAX_VALUE_LEN = std.fs.max_path_bytes - MAX_KEY_LEN;
 
-const env_parser = @This();
+pub const env_parser = @This();
 
 pub fn parseFilePath(allocator: std.mem.Allocator, out_map: std.StringHashMap([]const u8), absolute_path: []const u8) !void {
     const file = try std.fs.openFileAbsolute(absolute_path, .{ .mode = .read_only });
