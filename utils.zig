@@ -1,7 +1,12 @@
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
+const defines = @import("defines.zig").defines;
 
 pub const utils = @This();
+
+pub fn bytesToGB(bytes: usize) usize {
+    return bytes / defines.BYTE_TO_GB_FACTOR;
+}
 
 /// Validating using POSIX Portable filename character set
 /// [A-Za-Z0-9._-]

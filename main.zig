@@ -1,5 +1,4 @@
 const std = @import("std");
-const env_parser = @import("env-parser.zig");
 const utils = @import("utils.zig").utils;
 const fsmanip = @import("fsmanip.zig").fsmanip;
 const s_config = @import("s_config.zig").s_config;
@@ -115,8 +114,8 @@ pub fn main() !void {
             defer source_dir.close();
 
             const s_w_filename = try utils.concat(aa, structure, filename);
-            const dest_path = try fsmanip.createStructurePath(aa, setted_folder, s_w_filename);
-            var dest_dir = try fsmanip.mkStructure(setted_folder, structure);
+            const dest_path = try fsmanip.createStructurePath(aa, setted_folder.value, s_w_filename);
+            var dest_dir = try fsmanip.mkStructure(setted_folder.value, structure);
             defer dest_dir.close();
 
             try source_dir.copyFile(real_file_path, dest_dir, dest_path, .{});
