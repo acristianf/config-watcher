@@ -3,6 +3,7 @@ const env_parser = @import("env-parser.zig");
 const utils = @import("utils.zig").utils;
 const fsmanip = @import("fsmanip.zig").fsmanip;
 const s_config = @import("s_config.zig").s_config;
+const WatcherConfErrors = @import("r_errors.zig").WatcherConfErrors;
 
 const Allocator = std.mem.Allocator;
 
@@ -76,10 +77,13 @@ pub fn main() !void {
             _ = try watcher_file.write(folderconfig);
             _ = try watcher_file.write("\n");
         } else if (std.mem.eql(u8, arg, "--add-file")) {
+            const setted_folder = config.folder orelse return WatcherConfErrors.ContainerFolderNotSet;
+
             const file_path = args.next() orelse {
                 std.log.err(HELP_ADD_FILE, .{});
                 return;
             };
+
             var b: [std.fs.max_path_bytes:0]u8 = undefined;
             const real_file_path = std.fs.realpath(file_path, &b) catch |err| {
                 switch (err) {
@@ -88,16 +92,37 @@ pub fn main() !void {
                 }
                 return;
             };
-            _ = real_file_path;
-            const structure = args.next() orelse {
+
+            // Check if we can open the file
+            const file_check = try std.fs.openFileAbsolute(real_file_path, .{});
+            file_check.close();
+
+            const last_slash = std.mem.lastIndexOfScalar(u8, real_file_path, '/');
+            const filename = if (last_slash) |pos| file_path[pos..] else file_path;
+
+            const s = args.next() orelse {
                 std.log.err(HELP_ADD_FILE, .{});
                 return;
             };
-            if (!utils.validPath(structure)) {
+            const structure = if (s[s.len - 1] != '/') try utils.concat(aa, s, "/") else s;
+
+            if (!utils.validLinuxPath(structure)) {
                 return std.log.err("Not a valid path passed down as a structure", .{});
             }
-            const dir = try fsmanip.mkStructure(config, structure);
-            _ = dir;
+
+            const source_dir_path = real_file_path[0..last_slash.?];
+            var source_dir = try std.fs.openDirAbsolute(source_dir_path, .{});
+            defer source_dir.close();
+
+            const s_w_filename = try utils.concat(aa, structure, filename);
+            const dest_path = try fsmanip.createStructurePath(aa, setted_folder, s_w_filename);
+            var dest_dir = try fsmanip.mkStructure(setted_folder, structure);
+            defer dest_dir.close();
+
+            try source_dir.copyFile(real_file_path, dest_dir, dest_path, .{});
+
+            std.log.info("file added to {s}\n", .{dest_path});
+
             return;
         }
     }

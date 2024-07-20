@@ -4,7 +4,7 @@ const utils = @import("utils.zig").utils;
 const env_parser = @import("env-parser.zig").env_parser;
 const WatcherConfErrors = @import("r_errors.zig").r_errors.WatcherConfErrors;
 
-const s_config = @This();
+pub const s_config = @This();
 
 pub fn parseConfig(aa: Allocator) !WatcherConfig {
     return try WatcherConfig.init(aa);
@@ -31,9 +31,18 @@ pub const WatcherConfig = struct {
         defer config_map.deinit();
 
         const file = try std.fs.openFileAbsolute(config_file_path, .{});
+        defer file.close();
         try env_parser.parseFile(allocator, &config_map, &file);
 
-        return .{ .folder = config_map.get("folder") orelse null, .repo = config_map.get("repo") orelse null, .home_dir = home_dir, .allocator = allocator };
+        var f = config_map.get("folder") orelse null;
+
+        if (f) |setted_folder| {
+            if (setted_folder[setted_folder.len - 1] != '/') {
+                f = try utils.concat(allocator, setted_folder, "/");
+            }
+        }
+
+        return .{ .folder = f, .repo = config_map.get("repo") orelse null, .home_dir = home_dir, .allocator = allocator };
     }
 };
 

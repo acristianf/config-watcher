@@ -2,12 +2,13 @@
 
 ## Milestones/Progress
 
-- [X] Parse Command Line Arguments - 2024-07-12
-- [X] Write to Files               - 2024-07-13
-- [ ] Parse Watcher Config
-- [ ] Make Watcher Config file
-- [ ] Read Files
-- [ ] Make Copies
+- [X] Parse Command Line Arguments 
+- [X] Write to Files               
+- [X] Parse Watcher Config
+- [X] Make Watcher Config file
+    - [ ] Overwrite option if already setted
+- [X] Read Files
+- [X] Make Copies
 - [ ] Diff Files
 - [ ] Create Service
 - [ ] Upload to Github
