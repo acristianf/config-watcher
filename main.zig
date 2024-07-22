@@ -20,15 +20,13 @@ const SET_FOLDER_HELP =
 ;
 
 pub fn main() !void {
-    const HOME_DIR = std.posix.getenv("HOME") orelse return error.HomeEnvNotSet;
-
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpaa = gpa.allocator();
     var arena = std.heap.ArenaAllocator.init(gpaa);
     const aa = arena.allocator();
     defer arena.deinit();
 
-    const config = try s_config.parseConfig(aa);
+    var config = try s_config.parseConfig(aa);
 
     var args = std.process.args();
     while (args.next()) |arg| {
@@ -42,39 +40,8 @@ pub fn main() !void {
                 std.log.err("Couldn't read path '{s}'. Error: {!} \n", .{ path, err });
                 return;
             };
-            const watcher = utils.concat(aa, HOME_DIR, "/.watcher") catch |err| {
-                std.log.err("{!} \n", .{err});
-                return;
-            };
-            std.fs.makeDirAbsolute(watcher) catch |err| {
-                switch (err) {
-                    error.PathAlreadyExists => {},
-                    else => {
-                        std.log.err("Unexpected error creating '.watcher' folder on home. Error: {!} \n", .{err});
-                        return;
-                    },
-                }
-            };
-            var watcher_dir = std.fs.openDirAbsolute(watcher, .{}) catch |err| {
-                switch (err) {
-                    error.AccessDenied => std.log.err("Access Denied trying to open folder '{s}' \n", .{watcher}),
-                    else => std.log.err("Unexpected error. Error: {!} \n", .{err}),
-                }
-                return;
-            };
-            defer watcher_dir.close();
-            var watcher_file = watcher_dir.createFile("watcher.env", .{ .truncate = false }) catch |err| {
-                switch (err) {
-                    error.AccessDenied => std.log.err("Access Denied trying to create/open 'watcher.env' \n", .{}),
-                    else => std.log.err("Unexpected error trying to create/open 'watcher.env'. Error: {!} \n", .{err}),
-                }
-                return;
-            };
-            defer watcher_file.close();
-            try watcher_file.seekFromEnd(0);
-            const folderconfig = try utils.concat(aa, "folder=", realpath);
-            _ = try watcher_file.write(folderconfig);
-            _ = try watcher_file.write("\n");
+            config.folder = realpath;
+            try config.update();
         } else if (std.mem.eql(u8, arg, "--add-file")) {
             const setted_folder = config.folder orelse return WatcherConfErrors.ContainerFolderNotSet;
 
@@ -114,8 +81,8 @@ pub fn main() !void {
             defer source_dir.close();
 
             const s_w_filename = try utils.concat(aa, structure, filename);
-            const dest_path = try fsmanip.createStructurePath(aa, setted_folder.value, s_w_filename);
-            var dest_dir = try fsmanip.mkStructure(setted_folder.value, structure);
+            const dest_path = try fsmanip.createStructurePath(aa, setted_folder, s_w_filename);
+            var dest_dir = try fsmanip.mkStructure(setted_folder, structure);
             defer dest_dir.close();
 
             try source_dir.copyFile(real_file_path, dest_dir, dest_path, .{});

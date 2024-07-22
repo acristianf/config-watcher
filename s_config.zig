@@ -14,44 +14,78 @@ pub fn parseConfig(aa: Allocator) !WatcherConfig {
     return try WatcherConfig.init(aa);
 }
 
-const ConfigData = struct {
-    start_pos: defines.max_config_file_size,
-    value: []const u8,
-};
-
 pub const WatcherConfig = struct {
     allocator: Allocator,
     home_dir: []const u8,
+    config_file_path: []const u8,
 
     // Configuration specific
-    folder: ?ConfigData,
-    repo: ?ConfigData,
+    folder: ?[]const u8,
+    repo: ?[]const u8,
 
-    const config_path_leaf = "/.watcher/watcher.env";
+    const config_path_dir = "/.watcher/";
+    const config_filename = "watcher.env";
+
     const Self = @This();
 
     pub fn init(allocator: Allocator) !WatcherConfig {
         const home_dir = std.posix.getenv("HOME") orelse return WatcherConfErrors.HomeEnvNotSet;
 
-        // Load config file
-        const config_file_path = try utils.concat(allocator, home_dir, Self.config_path_leaf);
+        const full_config_path_dir = try utils.concat(allocator, home_dir, config_path_dir);
+        defer allocator.free(full_config_path_dir);
 
-        var config_map = std.StringHashMap(ConfigData).init(allocator);
+        std.fs.makeDirAbsolute(full_config_path_dir) catch |err| {
+            switch (err) {
+                error.PathAlreadyExists => {},
+                else => return err,
+            }
+        };
+
+        // Load config file
+        const cfp = try utils.concat(allocator, home_dir, Self.config_path_dir ++ Self.config_filename);
+
+        var config_map = std.StringHashMap([]const u8).init(allocator);
         defer config_map.deinit();
 
-        const file = try std.fs.openFileAbsolute(config_file_path, .{});
+        const file = try std.fs.openFileAbsolute(cfp, .{});
         defer file.close();
+
         try parseConfigFile(allocator, &config_map, &file);
 
         var f = config_map.get("folder") orelse null;
 
         if (f) |setted_folder| {
-            if (setted_folder.value[setted_folder.value.len - 1] != '/') {
-                f.?.value = try utils.concat(allocator, setted_folder.value, "/");
+            if (setted_folder[setted_folder.len - 1] != '/') {
+                f = try utils.concat(allocator, setted_folder, "/");
             }
         }
 
-        return .{ .folder = f, .repo = config_map.get("repo") orelse null, .home_dir = home_dir, .allocator = allocator };
+        return .{
+            .folder = f,
+            .repo = config_map.get("repo") orelse null,
+            .home_dir = home_dir,
+            .config_file_path = cfp,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn update(self: *WatcherConfig) !void {
+        var buf: [std.fs.max_path_bytes - 1:0]u8 = undefined;
+
+        var fba = std.heap.FixedBufferAllocator.init(&buf);
+        const fbaa = fba.allocator();
+
+        const file = try std.fs.createFileAbsolute(self.config_file_path, .{ .truncate = true });
+
+        if (self.folder) |folder| {
+            _ = try file.write(try std.mem.concat(fbaa, u8, &.{ "folder=", folder }));
+            fba.reset();
+        }
+
+        if (self.repo) |repo| {
+            _ = try file.write(try std.mem.concat(fbaa, u8, &.{ "repo=", repo }));
+            fba.reset();
+        }
     }
 };
 
@@ -70,7 +104,7 @@ fn read(out: []u8, reader: anytype) !defines.max_config_file_size {
 
 fn parseConfigFile(
     allocator: std.mem.Allocator,
-    out_map: *std.StringHashMap(ConfigData),
+    out_map: *std.StringHashMap([]const u8),
     file: *const std.fs.File,
 ) !void {
     const reader = file.*.reader();
@@ -105,14 +139,11 @@ fn parseConfigFile(
             @memcpy(key[0..pos], buf[start .. start + pos]);
             @memcpy(value[0 .. line_end - 1], buf[start + pos + 1 .. start + pos + line_end]);
             const off: u32 = @truncate(line_end + pos);
-            start += off;
             try out_map.put(
                 try allocator.dupe(u8, key[0..pos]),
-                .{
-                    .start_pos = start + f_offset,
-                    .value = try allocator.dupe(u8, value[0 .. line_end - 1]),
-                },
+                try allocator.dupe(u8, value[0 .. line_end - 1]),
             );
+            start += off;
         }
     }
 }
