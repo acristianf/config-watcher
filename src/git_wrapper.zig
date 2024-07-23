@@ -95,7 +95,7 @@ pub const Git = struct {
             std.log.err("GIT OUTPUT: \n{s}", .{result_add_origin.stderr});
             return GeneralErrors.GitError;
         }
-        std.log.info("Setted up remote to {s}\n", .{remote});
+        std.log.info("container up remote to {s}\n", .{remote});
 
         var result_fetch = try utils.runProcess(self.allocator, &.{ "git", "fetch" }, self.dir);
         defer self.free(&result_fetch);
@@ -121,7 +121,7 @@ pub const Git = struct {
             return GeneralErrors.GitError;
         }
 
-        std.log.info("successfully setted remote, to upload your configurations run the --sync flag", .{});
+        std.log.info("successfully set remote, to upload your configurations run the --sync flag", .{});
     }
 
     pub fn deinit(self: *Git) void {

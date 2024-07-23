@@ -12,7 +12,7 @@ const MAX_LINE_SIZE = 256 + std.fs.max_path_bytes;
 
 const HELP_ADD_FILE =
     \\config-watcher --add-file <file> <structure>
-    \\      <file> can be relative or absolute path to a file you want to save in your setted folder
+    \\      <file> can be relative or absolute path to a file you want to save in your container folder
     \\      <structure> folder structure where to save file ex. .config/nvim
 ;
 
@@ -50,7 +50,7 @@ pub fn main() !void {
             config.folder = realpath;
             try config.update();
         } else if (std.mem.eql(u8, arg, "--add-file")) {
-            const setted_folder = config.folder orelse return WatcherConfErrors.ContainerFolderNotSet;
+            const container_folder = config.folder orelse return WatcherConfErrors.ContainerFolderNotSet;
 
             const file_path = args.next() orelse {
                 std.log.err(HELP_ADD_FILE, .{});
@@ -88,8 +88,8 @@ pub fn main() !void {
             defer source_dir.close();
 
             const s_w_filename = try utils.concat(aa, structure, filename);
-            const dest_path = try fsmanip.createStructurePath(aa, setted_folder, s_w_filename);
-            var dest_dir = try fsmanip.mkStructure(setted_folder, structure);
+            const dest_path = try fsmanip.createStructurePath(aa, container_folder, s_w_filename);
+            var dest_dir = try fsmanip.mkStructure(container_folder, structure);
             defer dest_dir.close();
 
             try source_dir.copyFile(real_file_path, dest_dir, dest_path, .{});

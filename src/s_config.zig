@@ -51,9 +51,9 @@ pub const WatcherConfig = struct {
 
         var f = config_map.get("folder") orelse null;
 
-        if (f) |setted_folder| {
-            if (setted_folder[setted_folder.len - 1] != '/') {
-                f = try utils.concat(allocator, setted_folder, "/");
+        if (f) |container_folder| {
+            if (container_folder[container_folder.len - 1] != '/') {
+                f = try utils.concat(allocator, container_folder, "/");
             }
         }
 

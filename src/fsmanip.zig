@@ -34,9 +34,9 @@ fn cleanSlashes(out_buffer: []u8, structure: []const u8) []u8 {
     return out_buffer[0..written];
 }
 
-pub fn createStructurePath(allocator: std.mem.Allocator, setted_folder: []const u8, structure: []const u8) ![]u8 {
+pub fn createStructurePath(allocator: std.mem.Allocator, container_folder: []const u8, structure: []const u8) ![]u8 {
     try validateStructure(structure);
-    const c = try utils.concat(allocator, setted_folder, structure);
+    const c = try utils.concat(allocator, container_folder, structure);
     defer allocator.free(c);
     const out = try allocator.alloc(u8, c.len);
     return cleanSlashes(out, c);
@@ -44,13 +44,13 @@ pub fn createStructurePath(allocator: std.mem.Allocator, setted_folder: []const 
 
 /// Creates a directory structure inside the designated
 /// config container folder
-pub fn mkStructure(setted_folder: []const u8, structure_path_absolute: []const u8) !std.fs.Dir {
+pub fn mkStructure(container_folder: []const u8, structure_path_absolute: []const u8) !std.fs.Dir {
     // Alloc 40kb of stack memory
     var buf: [4096 * 10]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buf);
 
     var path_names_iterator = std.mem.splitScalar(u8, structure_path_absolute, '/');
-    var leaf = setted_folder;
+    var leaf = container_folder;
     while (path_names_iterator.next()) |path| {
         if (path.len == 0) continue;
         if (leaf[leaf.len - 1] != '/') {
