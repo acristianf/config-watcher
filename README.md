@@ -6,7 +6,7 @@
 - [X] Write to Files               
 - [X] Parse Watcher Config
 - [X] Make Watcher Config file
-    - [ ] Overwrite option if already setted
+    - [ ] Overwrite option if already set
 - [X] Read Files
 - [X] Make Copies
 - [ ] Diff Files

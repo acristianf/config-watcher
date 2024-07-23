@@ -1,9 +1,10 @@
 const std = @import("std");
-const utils = @import("utils.zig").utils;
-const fsmanip = @import("fsmanip.zig").fsmanip;
-const s_config = @import("s_config.zig").s_config;
+const utils = @import("utils.zig");
+const fsmanip = @import("fsmanip.zig");
+const s_config = @import("s_config.zig");
 const WatcherConfErrors = @import("r_errors.zig").WatcherConfErrors;
 const GeneralErrors = @import("r_errors.zig").GeneralErrors;
+const git_wrapper = @import("git_wrapper.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -95,39 +96,48 @@ pub fn main() !void {
 
             std.log.info("file added to {s}\n", .{dest_path});
         } else if (std.mem.eql(u8, arg, "--set-remote")) {
+            if (config.folder == null) {
+                std.log.warn("configurations folder not set, can't sync without a configs folder!\n", .{});
+                return WatcherConfErrors.ContainerFolderNotSet;
+            }
+            var git = try git_wrapper.Git.init(aa, config.folder.?);
+            defer git.deinit();
             const remote: []const u8 = args.next() orelse {
                 std.log.err(SET_REMOTE_HELP, .{});
                 return;
             };
-            try config.setupRemote(remote);
-        } else if (std.mem.eql(u8, arg, "--push")) {
-            // TODO: extract this git logic
+
+            std.log.warn("this RESETS the repository inside the set folder, so any .git will be deleted. Proceed? [y/n]", .{});
+            const stdin = std.io.getStdIn();
+            var buf: [1]u8 = undefined;
+            _ = try stdin.read(&buf);
+
+            if (buf[0] != 'y') {
+                return;
+            }
+
+            if (config.remote) |cur_remote| {
+                if (std.mem.eql(u8, cur_remote, remote)) {
+                    std.log.warn("remote is already set to the one you are trying to set", .{});
+                    return;
+                }
+            }
+
+            try git.setupRemote(remote);
+
+            config.remote = remote;
+            try config.update();
+        } else if (std.mem.eql(u8, arg, "--sync")) {
             if (config.folder == null) {
-                std.log.warn("configurations folder not set, can't push without a configs folder!\n", .{});
+                std.log.warn("configurations folder not set, can't sync without a configs folder!\n", .{});
                 return WatcherConfErrors.ContainerFolderNotSet;
             }
-            var configs_folder = try std.fs.openDirAbsolute(config.folder.?, .{});
-            defer configs_folder.close();
-            const result_add = try utils.runProcess(aa, &.{ "git", "add", "." }, configs_folder);
-            if (result_add.term.Exited != 0) {
-                std.log.err("Couldn't 'git add'. Is there a problem with the git setup inside the folder? run --set-remote again", .{});
-                return GeneralErrors.GitError;
-            }
+            var git = try git_wrapper.Git.init(aa, config.folder.?);
+            defer git.deinit();
 
-            const result_commit = try utils.runProcess(aa, &.{ "git", "commit", "-m", "watcher push" }, configs_folder);
-            if (result_commit.term.Exited != 0) {
-                std.log.err("Couldn't create commit", .{});
-                std.log.err("GIT OUTPUT:\n{s}", .{result_commit.stdout});
-                return GeneralErrors.GitError;
-            }
-
-            const result_push = try utils.runProcess(aa, &.{ "git", "push" }, configs_folder);
-            if (result_push.term.Exited != 0) {
-                std.log.err("Couldn't push to remote", .{});
-                std.log.err("GIT OUTPUT: \n{s}\n", .{result_push.stderr});
-                return GeneralErrors.GitError;
-            }
-            std.log.info("{s}\n", .{result_push.stdout});
+            try git.add(null);
+            try git.commit(null);
+            try git.push();
         }
     }
 }

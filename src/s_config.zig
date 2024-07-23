@@ -85,69 +85,6 @@ pub const WatcherConfig = struct {
         }
     }
 
-    pub fn setupRemote(self: *WatcherConfig, remote: []const u8) !void {
-        // TODO: Make this check better
-        if (std.mem.eql(u8, remote[0..5], "http:") or std.mem.eql(u8, remote[0..6], "https:")) {
-            std.log.err("don't support http/https git remote", .{});
-            return GeneralErrors.GitError;
-        }
-
-        if (self.folder == null) {
-            std.log.err("couldn't find config folder, did you set it up?", .{});
-            return error.ContainerFolderNotSet;
-        }
-
-        var dir = try std.fs.openDirAbsolute(self.folder.?, .{});
-        defer dir.close();
-        try dir.deleteTree(".git");
-
-        const echo_file = try utils.runProcess(self.allocator, &.{ "touch", "README.md" }, dir);
-        if (echo_file.term.Exited != 0) {
-            std.log.err("couldn't echo into README.md", .{});
-            std.log.err("ECHO OUTPUT: \n{s}", .{echo_file.stderr});
-            return;
-        }
-
-        const result_init = try utils.runProcess(self.allocator, &.{ "git", "init" }, dir);
-        if (result_init.term.Exited != 0) {
-            return GeneralErrors.GitError;
-        }
-        std.log.info("{s}", .{result_init.stdout});
-
-        const first_add = try utils.runProcess(self.allocator, &.{ "git", "add", "README.md" }, dir);
-        _ = first_add;
-
-        const first_commit = try utils.runProcess(self.allocator, &.{ "git", "commit", "-m", "\"watcher first commit\"" }, dir);
-        if (first_commit.term.Exited != 0) {
-            std.log.err("couldn't run first commit", .{});
-            return GeneralErrors.GitError;
-        }
-
-        const result_setup_main = try utils.runProcess(self.allocator, &.{ "git", "branch", "-M", "main" }, dir);
-        if (result_setup_main.term.Exited != 0) {
-            std.log.err("couldn't setup main branch to {s}", .{remote});
-            std.log.err("GIT OUTPUT: \n{s}", .{result_setup_main.stderr});
-            return GeneralErrors.GitError;
-        }
-
-        const result_add_origin = try utils.runProcess(self.allocator, &.{ "git", "remote", "add", "origin", remote }, dir);
-        if (result_add_origin.term.Exited != 0) {
-            std.log.err("couldn't setup remote to {s}", .{remote});
-            std.log.err("GIT OUTPUT: \n{s}", .{result_add_origin.stderr});
-            return GeneralErrors.GitError;
-        }
-        std.log.info("Setted up remote to {s}\n", .{remote});
-
-        const result_setup_upstream = try utils.runProcess(self.allocator, &.{ "git", "push", "-u", "origin", "main" }, dir);
-        if (result_setup_upstream.term.Exited != 0) {
-            std.log.err("couldn't setup upstream branch", .{});
-            std.log.err("GIT OUTPUT: \n{s}", .{result_setup_upstream.stderr});
-            return GeneralErrors.GitError;
-        }
-
-        std.log.info("to upload your configurations run the --push flag", .{});
-    }
-
     fn parseConfigFile(
         allocator: std.mem.Allocator,
         out_map: *std.StringHashMap([]const u8),
