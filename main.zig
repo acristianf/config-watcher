@@ -3,6 +3,7 @@ const utils = @import("utils.zig").utils;
 const fsmanip = @import("fsmanip.zig").fsmanip;
 const s_config = @import("s_config.zig").s_config;
 const WatcherConfErrors = @import("r_errors.zig").WatcherConfErrors;
+const GeneralErrors = @import("r_errors.zig").GeneralErrors;
 
 const Allocator = std.mem.Allocator;
 
@@ -15,8 +16,13 @@ const HELP_ADD_FILE =
 ;
 
 const SET_FOLDER_HELP =
-    \\config-watcher --add-folder <folder>
+    \\config-watcher --set-folder <folder>
     \\      Sets the folder where to save your configs. This config is saved inside ~/.watcher/watcher.env
+;
+
+const SET_REMOTE_HELP =
+    \\config-watcher --set-remote <remote>
+    \\      Sets the remote repository where to upload your configs. This config is saved inside ~/.watcher/watcher.env
 ;
 
 pub fn main() !void {
@@ -26,7 +32,7 @@ pub fn main() !void {
     const aa = arena.allocator();
     defer arena.deinit();
 
-    var config = try s_config.parseConfig(aa);
+    var config = try s_config.WatcherConfig.init(aa);
 
     var args = std.process.args();
     while (args.next()) |arg| {
@@ -88,8 +94,40 @@ pub fn main() !void {
             try source_dir.copyFile(real_file_path, dest_dir, dest_path, .{});
 
             std.log.info("file added to {s}\n", .{dest_path});
+        } else if (std.mem.eql(u8, arg, "--set-remote")) {
+            const remote: []const u8 = args.next() orelse {
+                std.log.err(SET_REMOTE_HELP, .{});
+                return;
+            };
+            try config.setupRemote(remote);
+        } else if (std.mem.eql(u8, arg, "--push")) {
+            // TODO: extract this git logic
+            if (config.folder == null) {
+                std.log.warn("configurations folder not set, can't push without a configs folder!\n", .{});
+                return WatcherConfErrors.ContainerFolderNotSet;
+            }
+            var configs_folder = try std.fs.openDirAbsolute(config.folder.?, .{});
+            defer configs_folder.close();
+            const result_add = try utils.runProcess(aa, &.{ "git", "add", "." }, configs_folder);
+            if (result_add.term.Exited != 0) {
+                std.log.err("Couldn't 'git add'. Is there a problem with the git setup inside the folder? run --set-remote again", .{});
+                return GeneralErrors.GitError;
+            }
 
-            return;
+            const result_commit = try utils.runProcess(aa, &.{ "git", "commit", "-m", "watcher push" }, configs_folder);
+            if (result_commit.term.Exited != 0) {
+                std.log.err("Couldn't create commit", .{});
+                std.log.err("GIT OUTPUT:\n{s}", .{result_commit.stdout});
+                return GeneralErrors.GitError;
+            }
+
+            const result_push = try utils.runProcess(aa, &.{ "git", "push" }, configs_folder);
+            if (result_push.term.Exited != 0) {
+                std.log.err("Couldn't push to remote", .{});
+                std.log.err("GIT OUTPUT: \n{s}\n", .{result_push.stderr});
+                return GeneralErrors.GitError;
+            }
+            std.log.info("{s}\n", .{result_push.stdout});
         }
     }
 }

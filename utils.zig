@@ -30,6 +30,26 @@ pub fn concat(allocator: Allocator, a: []const u8, b: []const u8) ![]u8 {
     return result;
 }
 
+pub fn runProcess(allocator: Allocator, args: []const []const u8, dir: ?std.fs.Dir) !std.process.Child.RunResult {
+    var child = std.process.Child.init(args, allocator);
+    child.cwd_dir = dir orelse null;
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+    var stdout = std.ArrayList(u8).init(allocator);
+    var stderr = std.ArrayList(u8).init(allocator);
+    errdefer {
+        stdout.deinit();
+        stderr.deinit();
+    }
+    try child.spawn();
+    try child.collectOutput(&stdout, &stderr, 4096 * 4);
+    return .{
+        .term = try child.wait(),
+        .stdout = try stdout.toOwnedSlice(),
+        .stderr = try stderr.toOwnedSlice(),
+    };
+}
+
 test "valid linux paths" {
     try std.testing.expect(validLinuxPath("basic"));
     try std.testing.expect(validLinuxPath("basic/"));

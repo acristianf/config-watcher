@@ -9,3 +9,5 @@ pub const WatcherConfErrors = error{
 pub const PathStructureError = error{
     RelativePathsNotSupported,
 };
+
+pub const GeneralErrors = error{GitError};
