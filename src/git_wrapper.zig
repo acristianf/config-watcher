@@ -34,7 +34,7 @@ pub const Git = struct {
 
     pub fn commit(self: *Git, msg: ?[]const u8) !void {
         var result = try utils.runProcess(self.allocator, &.{ "git", "commit", "-m", msg orelse "watcher sync" }, self.dir);
-        self.free(&result);
+        defer self.free(&result);
         if (result.term.Exited != 0) {
             std.log.err("Couldn't create commit", .{});
             std.log.err("GIT OUTPUT:\n{s}", .{result.stdout});
