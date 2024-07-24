@@ -6,10 +6,11 @@
 - [X] Write to Files               
 - [X] Parse Watcher Config
 - [X] Make Watcher Config file
-    - [ ] Overwrite option if already set
+    - [X] Overwrite option if already set
 - [X] Read Files
 - [X] Make Copies
+- [ ] Iterate and copy directory 
 - [ ] Diff Files
 - [ ] Create Service
-- [ ] Upload to Github
+- [X] Upload to Github
 - [ ] Learn Building
