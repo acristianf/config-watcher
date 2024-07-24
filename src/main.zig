@@ -73,14 +73,15 @@ pub fn main() !void {
             const last_slash = std.mem.lastIndexOfScalar(u8, real_file_path, '/');
             const filename = if (last_slash) |pos| file_path[pos..] else file_path;
 
-            const s = args.next() orelse {
-                std.log.err(HELP_ADD_FILE, .{});
-                return;
-            };
-            const structure = if (s[s.len - 1] != '/') try utils.concat(aa, s, "/") else s;
+            const s = args.next() orelse "";
 
-            if (!utils.validLinuxPath(structure)) {
-                return std.log.err("Not a valid path passed down as a structure", .{});
+            var structure: []const u8 = "";
+
+            if (s.len != 0) {
+                structure = if (s[s.len - 1] != '/') try utils.concat(aa, s, "/") else s;
+                if (!utils.validLinuxPath(structure)) {
+                    return std.log.err("Not a valid path passed down as a structure", .{});
+                }
             }
 
             const source_dir_path = real_file_path[0..last_slash.?];
