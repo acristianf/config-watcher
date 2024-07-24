@@ -50,7 +50,7 @@ pub const Git = struct {
             std.log.err("GIT OUTPUT: \n{s}", .{result.stderr});
             return GeneralErrors.GitError;
         }
-        std.log.info("{s}", .{result.stdout});
+        std.log.info("synced correctly", .{});
     }
 
     pub fn setupRemote(self: *Git, remote: []const u8) !void {
