@@ -50,6 +50,45 @@ pub fn runProcess(allocator: Allocator, args: []const []const u8, dir: ?std.fs.D
     };
 }
 
+// Very raw slice includes utility
+pub fn sIncludes(comptime T: type, slice: []const T, val: T) bool {
+    if (slice.len == 0) return false;
+
+    outer: for (slice) |el| {
+        var eq = true;
+        switch (@typeInfo(T)) {
+            .Int => {
+                if (el != val) {
+                    eq = false;
+                    continue :outer;
+                }
+            },
+            .Pointer => {
+                if (el.len != val.len) {
+                    eq = false;
+                    continue :outer;
+                }
+                for (el, val) |b1, b2| {
+                    if (b1 != b2) {
+                        eq = false;
+                        break;
+                    }
+                }
+            },
+            else => std.log.warn("type not supported", .{}),
+        }
+        if (eq) return true;
+    }
+
+    return false;
+}
+
+test "sIncludes" {
+    try std.testing.expect(sIncludes([]const u8, &([_][]const u8{".git"}), ".git"));
+    const int_array = [_]u32{ 32, 10, 25 };
+    try std.testing.expect(sIncludes(u32, &int_array, 25));
+}
+
 test "valid linux paths" {
     try std.testing.expect(validLinuxPath("basic"));
     try std.testing.expect(validLinuxPath("basic/"));

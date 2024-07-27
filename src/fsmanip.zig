@@ -3,6 +3,7 @@ const utils = @import("utils.zig").utils;
 const PathStructureError = @import("r_errors.zig").PathStructureError;
 const WatcherConfErrors = @import("r_errors.zig").WatcherConfErrors;
 const WatcherConfig = @import("s_config.zig").WatcherConfig;
+const defines = @import("defines.zig");
 
 pub const fsmanip = @This();
 
@@ -68,4 +69,27 @@ pub fn mkStructure(container_folder: []const u8, structure_path_absolute: []cons
     }
 
     return try std.fs.openDirAbsolute(leaf, .{});
+}
+
+pub fn copyDirectory(dir: std.fs.Dir, container_folder: []const u8, relative_structure: []u8) !void {
+    var tmp_buf: [std.fs.max_path_bytes - 1:0]u8 = undefined;
+    const structure = try fsmanip.mkStructure(container_folder, relative_structure);
+    var dir_iterator = dir.iterate();
+    while (try dir_iterator.next()) |item| {
+        switch (item.kind) {
+            std.fs.File.Kind.directory => {
+                if (utils.sIncludes([]const u8, &defines.EXCLUDE_DIRS, item.name)) continue;
+                var inner = try dir.openDir(item.name, .{ .iterate = true });
+                defer inner.close();
+                const new_structure = try std.fmt.bufPrintZ(&tmp_buf, "{s}/{s}", .{ relative_structure, item.name });
+                try copyDirectory(inner, container_folder, new_structure);
+            },
+            std.fs.File.Kind.file => {
+                try dir.copyFile(item.name, structure, item.name, .{});
+            },
+            else => {
+                std.log.warn("ignore unknown file kind", .{});
+            },
+        }
+    }
 }

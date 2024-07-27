@@ -13,7 +13,13 @@ const MAX_LINE_SIZE = 256 + std.fs.max_path_bytes;
 const HELP_ADD_FILE =
     \\config-watcher --add-file <file> <structure>
     \\      <file> can be relative or absolute path to a file you want to save in your container folder
-    \\      <structure> folder structure where to save file ex. .config/nvim
+    \\      optional <structure> folder structure where to save file ex. .config/nvim
+;
+
+const HELP_ADD_FOLDER =
+    \\config-watcher --add-folder <folder> <structure>
+    \\      <folder> can be relative or absolute path to a folder you want to save in your container folder
+    \\      optional <structure> folder structure where to save folder
 ;
 
 const SET_FOLDER_HELP =
@@ -139,6 +145,32 @@ pub fn main() !void {
             try git.add(null);
             try git.commit(null);
             try git.push();
+        } else if (std.mem.eql(u8, arg, "--add-folder")) {
+            const f = args.next() orelse {
+                std.log.err(HELP_ADD_FOLDER, .{});
+                return;
+            };
+            if (config.folder == null) {
+                std.log.warn("configurations folder not set, please add it!", .{});
+                return WatcherConfErrors.ContainerFolderNotSet;
+            }
+            var dir = try std.fs.openDirAbsolute(f, .{ .iterate = true });
+            defer dir.close();
+
+            var out_buf: [std.fs.max_path_bytes - 1:0]u8 = undefined;
+            const p = try std.fs.realpath(f, &out_buf);
+            var match_end: usize = 0;
+            while (match_end < config.home_dir.len and match_end < p.len and config.home_dir[match_end] == p[match_end]) {
+                match_end += 1;
+            }
+
+            if (match_end != config.home_dir.len) {
+                std.log.err("config folder not inside HOME", .{});
+                return;
+            }
+            const relative_structure = p[match_end..];
+
+            try fsmanip.copyDirectory(dir, config.folder.?, relative_structure);
         }
     }
 }
