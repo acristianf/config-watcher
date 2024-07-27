@@ -9,7 +9,7 @@
     - [X] Overwrite option if already set
 - [X] Read Files
 - [X] Make Copies
-- [ ] Iterate and copy directory 
+- [X] Iterate and copy directory 
 - [ ] Diff Files
 - [ ] Create Service
 - [X] Upload to Github
