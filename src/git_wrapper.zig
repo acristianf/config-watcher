@@ -32,7 +32,13 @@ pub const Git = struct {
         }
     }
 
-    pub fn commit(self: *Git, msg: ?[]const u8) !void {
+    pub fn commit(self: *Git, msg: ?[]const u8) !u8 {
+        var check = try utils.runProcess(self.allocator, &.{ "git", "diff", "--quiet" }, self.dir);
+        defer self.free(&check);
+        if (check.term.Exited != 1) {
+            std.log.info("no changes to sync", .{});
+            return 1;
+        }
         var result = try utils.runProcess(self.allocator, &.{ "git", "commit", "-m", msg orelse "watcher sync" }, self.dir);
         defer self.free(&result);
         if (result.term.Exited != 0) {
@@ -40,6 +46,7 @@ pub const Git = struct {
             std.log.err("GIT OUTPUT:\n{s}", .{result.stdout});
             return GeneralErrors.GitError;
         }
+        return 0;
     }
 
     pub fn push(self: *Git) !void {
@@ -78,7 +85,7 @@ pub const Git = struct {
         std.log.info("{s}", .{result_init.stdout});
 
         try self.add(null);
-        try self.commit("watcher init");
+        _ = try self.commit("watcher init");
 
         var result_setup_main = try utils.runProcess(self.allocator, &.{ "git", "branch", "-M", "main" }, self.dir);
         defer self.free(&result_setup_main);

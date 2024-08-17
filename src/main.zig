@@ -143,7 +143,8 @@ pub fn main() !void {
             defer git.deinit();
 
             try git.add(null);
-            try git.commit(null);
+            const code: u8 = try git.commit(null);
+            if (code == 1) return;
             try git.push();
         } else if (std.mem.eql(u8, arg, "--add-folder")) {
             const f = args.next() orelse {
