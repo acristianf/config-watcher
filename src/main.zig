@@ -171,6 +171,17 @@ pub fn main() !void {
             const relative_structure = p[match_end..];
 
             try fsmanip.copyDirectory(dir, config.folder.?, relative_structure);
+        } else if (std.mem.eql(u8, arg, "--update")) {
+            if (config.folder == null) {
+                std.log.warn("configurations folder not set, please add it!", .{});
+                return WatcherConfErrors.ContainerFolderNotSet;
+            }
+
+            var root = try std.fs.openDirAbsolute(config.folder.?, .{ .iterate = true });
+            defer root.close();
+
+            try fsmanip.updateFiles(aa, root, config.home_dir);
+            std.log.info("finished updating files", .{});
         }
     }
 }

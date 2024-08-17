@@ -4,6 +4,7 @@ const PathStructureError = @import("r_errors.zig").PathStructureError;
 const WatcherConfErrors = @import("r_errors.zig").WatcherConfErrors;
 const WatcherConfig = @import("s_config.zig").WatcherConfig;
 const defines = @import("defines.zig");
+const MyersDiff = @import("lib/diff.zig").MyersDiff;
 
 pub const fsmanip = @This();
 
@@ -90,6 +91,49 @@ pub fn copyDirectory(dir: std.fs.Dir, container_folder: []const u8, relative_str
             else => {
                 std.log.warn("ignore unknown file kind", .{});
             },
+        }
+    }
+}
+
+pub fn updateFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, real_path: []const u8) !void {
+    std.log.info("analyzing '{s}'", .{real_path});
+    var it = dir.iterate();
+    while (try it.next()) |entry| {
+        switch (entry.kind) {
+            .file => {
+                const f = try dir.openFile(entry.name, .{});
+                var buf: [std.fs.max_path_bytes - 1:0]u8 = undefined;
+                const real_file_path = try std.fmt.bufPrintZ(&buf, "{s}/{s}", .{ real_path, entry.name });
+                const real_f = std.fs.openFileAbsolute(real_file_path, .{}) catch |err| {
+                    switch (err) {
+                        error.FileNotFound => {
+                            std.log.info("{s} not found. Skipping..", .{real_file_path});
+                            continue;
+                        },
+                        else => return err,
+                    }
+                };
+                defer real_f.close();
+                const c = try allocator.alloc(u8, (try f.stat()).size);
+                defer allocator.free(c);
+                const real_c = try allocator.alloc(u8, (try real_f.stat()).size);
+                defer allocator.free(real_c);
+                var differ = try MyersDiff(u8).init(allocator, c, real_c);
+                f.close();
+                if (try differ.distance() != 0) {
+                    try dir.copyFile(real_file_path, dir, entry.name, .{});
+                    std.log.info("\tupdating {s}...", .{entry.name});
+                }
+            },
+            .directory => {
+                if (utils.sIncludes([]const u8, &defines.EXCLUDE_DIRS, entry.name)) continue;
+                var inner = try dir.openDir(entry.name, .{ .iterate = true });
+                defer inner.close();
+                var buf: [std.fs.max_path_bytes - 1:0]u8 = undefined;
+                const p = try std.fmt.bufPrintZ(&buf, "{s}/{s}", .{ real_path, entry.name });
+                try updateFiles(allocator, inner, p);
+            },
+            else => std.log.warn("unknown file type {any}", .{entry.kind}),
         }
     }
 }
