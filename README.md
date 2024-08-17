@@ -10,7 +10,8 @@
 - [X] Read Files
 - [X] Make Copies
 - [X] Iterate and copy directory 
-- [ ] Diff Files
+- [X] Diff Files
+- [X] Update Files
 - [ ] Create Service
 - [X] Upload to Github
 - [ ] Learn Building
